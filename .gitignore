@@ -1,0 +1,5 @@
+*.sbactorpack
+*.sarc
+*.ssarc
+/target
+Cargo.lock

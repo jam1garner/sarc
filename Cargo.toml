@@ -1,0 +1,14 @@
+[package]
+name = "sarc"
+version = "0.1.0"
+authors = ["jam1garner <jam1.mcleod@hotmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "sarc"
+path = "src/main.rs"
+
+[dependencies]
+nom = "5"
+binwrite = "0.2.1"
+yaz0 = "0.1.2"
