@@ -1,14 +1,20 @@
 [package]
 name = "sarc"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["jam1garner <jam1.mcleod@hotmail.com>"]
 edition = "2018"
 
-[[bin]]
-name = "sarc"
-path = "src/main.rs"
+#[features]
+#sarctool = ["structopt"]
+
+#[[bin]]
+#name = "sarc"
+#path = "src/main.rs"
+#required-features = ["sarctool"]
 
 [dependencies]
 nom = "5"
 binwrite = "0.2.1"
 yaz0 = "0.1.2"
+
+#structopt = { version = "", optional = true }
