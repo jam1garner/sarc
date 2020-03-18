@@ -6,7 +6,15 @@ use std::path::Path;
 #[derive(Debug)]
 pub enum Error {
     IoError(std::io::Error),
-    Yaz0Error(yaz0::Error)
+
+    #[cfg(feature = "yaz0_sarc")]
+    Yaz0Error(yaz0::Error),
+}
+
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Self::IoError(e)
+    }
 }
 
 impl SarcFile {
@@ -14,20 +22,45 @@ impl SarcFile {
         self.write(&mut std::fs::File::create(path.as_ref())?)
     }
 
+    #[cfg(feature = "yaz0_sarc")]
     pub fn write_to_compressed_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
+        self.write_yaz0(
+            &mut std::fs::File::create(path.as_ref())?
+        )
+    }
+
+
+    #[cfg(feature = "zstd_sarc")]
+    #[cfg(not(feature = "yaz0_sarc"))]
+    pub fn write_to_compressed_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
+        self.write_zstd(
+            &mut std::fs::File::create(path.as_ref())?
+        )
+    }
+
+    #[cfg(feature = "yaz0_sarc")]
+    pub fn write_to_yaz0_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
         self.write_yaz0(
             &mut std::fs::File::create(path.as_ref())
                 .map_err(|e| Error::IoError(e))?
         )
     }
 
+    #[cfg(feature = "yaz0_sarc")]
     pub fn write_yaz0<W: Write>(&self, f: &mut W) -> Result<(), Error> {
         let writer = yaz0::Yaz0Writer::new(f);
         let mut temp = vec![];
-        self.write(&mut temp)
-            .map_err(|e| Error::IoError(e))?;
+        self.write(&mut temp)?;
         writer.compress_and_write(&temp, yaz0::CompressionLevel::Lookahead { quality: 10 })
             .map_err(|e| Error::Yaz0Error(e))
+    }
+
+    #[cfg(feature = "zstd_sarc")]
+    pub fn write_zstd<W: Write>(&self, f: &mut W) -> Result<(), Error> {
+        let mut writer =
+            zstd::stream::Encoder::new(f, zstd::DEFAULT_COMPRESSION_LEVEL)?;
+        self.write(&mut writer)?;
+        Ok(())
     }
 
     pub fn write<W: Write>(&self, f: &mut W) -> std::io::Result<()> {

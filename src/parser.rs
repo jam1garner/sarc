@@ -1,5 +1,4 @@
 use nom::{
-    error::ErrorKind as NomErrorKind,
     IResult,
     bytes::complete::tag,
     sequence::tuple,
@@ -88,11 +87,15 @@ type NE<'a> = (&'a [u8], nom::error::ErrorKind);
 #[derive(Debug)]
 pub enum Error {
     IoError(std::io::Error),
+
     ParseError(String),
-    Yaz0Error(yaz0::Error)
+
+    #[cfg(feature = "yaz0_sarc")]
+    Yaz0Error(yaz0::Error),
 }
 
 use std::io::Cursor;
+#[cfg(feature = "yaz0_sarc")]
 use yaz0::Yaz0Archive;
 
 impl SarcFile {
@@ -101,13 +104,36 @@ impl SarcFile {
     }
 
     pub fn read(data: &[u8]) -> Result<Self, Error> {
-        let decompressed;
-        let data = if b"Yaz0" == &data[..4] {
-            let mut yaz0_reader = Yaz0Archive::new(Cursor::new(data)).map_err(|e| Error::Yaz0Error(e))?;
-            decompressed = yaz0_reader.decompress().map_err(|e| Error::Yaz0Error(e))?;
-            &decompressed
-        } else {
-            data
+        let mut decompressed: Vec<u8>;
+        let data = {
+            if b"Yaz0" == &data[..4] {
+                #[cfg(feature = "yaz0_sarc")] {
+                    let mut yaz0_reader = Yaz0Archive::new(Cursor::new(data)).map_err(|e| Error::Yaz0Error(e))?;
+                    decompressed = yaz0_reader.decompress().map_err(|e| Error::Yaz0Error(e))?;
+                    &decompressed
+                }
+                #[cfg(not(feature = "yaz0_sarc"))] {
+                    return Err(Error::ParseError(
+                        "Yaz0 compression detected but yaz0_sarc feature not enabled.".into()
+                    ));
+                } 
+            } else if b"\x28\xB5\x2F\xFD" == &data[..4] {  
+                #[cfg(feature = "zstd_sarc")] {
+                    decompressed = vec![];
+                    zstd::stream::copy_decode(
+                        std::io::Cursor::new(data),
+                        &mut decompressed
+                    ).map_err(|e| Error::IoError(e))?;
+                    &decompressed
+                }
+                #[cfg(not(feature = "zstd_sarc"))] {
+                    return Err(Error::ParseError(
+                        "ZSTD compression detected but zstd_sarc feature not enabled.".into()
+                    ));
+                } 
+            } else {
+                data
+            }
         };
         Self::parse(data)
             .map(|a| a.1)

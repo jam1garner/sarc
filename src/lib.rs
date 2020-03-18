@@ -1,5 +1,5 @@
-mod parser;
-mod writer;
+pub mod parser;
+pub mod writer;
 
 #[derive(Debug)]
 pub struct SarcFile {
@@ -38,7 +38,15 @@ mod tests {
     #[test]
     fn file_test() {
         let file = SarcFile::read_from_file("Animal_Fish_A.sbactorpack").unwrap();
+        #[cfg(feature = "yaz0_sarc")]
         file.write_to_compressed_file("animal_test.sarc").unwrap();
+        dbg!(file);
+    }
+
+    #[test]
+    fn file_test_2() {
+        let file = SarcFile::read_from_file("/home/jam/a/downloads/animal_crossing/horizons/romfs/String.szs").unwrap();
+        file.write_to_file("test.sarc").unwrap();
         dbg!(file);
     }
 }
