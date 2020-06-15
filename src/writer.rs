@@ -3,6 +3,7 @@ use super::*;
 use std::io::prelude::*;
 use std::path::Path;
 
+/// An error raised in the process of writing the sarc file
 #[derive(Debug)]
 pub enum Error {
     IoError(std::io::Error),
@@ -18,10 +19,16 @@ impl From<std::io::Error> for Error {
 }
 
 impl SarcFile {
+    /// Write 
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
         self.write(&mut std::fs::File::create(path.as_ref())?)
     }
 
+    /// Write to a compressed file. This writes the SARC with yaz0 compression. Requires either the
+    /// `yaz0_sarc` feature or `zstd_sarc` feature enabled.
+    ///
+    /// **Note:** If yaz0 compression is disabled and zstd compression is enabled, this will write
+    /// with zstd compression.
     #[cfg(feature = "yaz0_sarc")]
     pub fn write_to_compressed_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
         self.write_yaz0(
@@ -29,7 +36,11 @@ impl SarcFile {
         )
     }
 
-
+    /// Write to a compressed file. This writes the SARC with yaz0 compression. Requires either the
+    /// `yaz0_sarc` feature or `zstd_sarc` feature enabled.
+    ///
+    /// **Note:** If yaz0 compression is disabled and zstd compression is enabled, this will write
+    /// with zstd compression.
     #[cfg(feature = "zstd_sarc")]
     #[cfg(not(feature = "yaz0_sarc"))]
     pub fn write_to_compressed_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
@@ -38,6 +49,7 @@ impl SarcFile {
         )
     }
 
+    /// Write to a compressed file. This writes the SARC with yaz0 compression. Requires `yaz0_sarc` feature
     #[cfg(feature = "yaz0_sarc")]
     pub fn write_to_yaz0_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
         self.write_yaz0(
@@ -46,6 +58,8 @@ impl SarcFile {
         )
     }
 
+    /// Write to a writer that implements [`std::io::Write`](std::io::Write). This writes the SARC with yaz0 
+    /// compression. Requires `yaz0_sarc` feature.
     #[cfg(feature = "yaz0_sarc")]
     pub fn write_yaz0<W: Write>(&self, f: &mut W) -> Result<(), Error> {
         let writer = yaz0::Yaz0Writer::new(f);
@@ -55,14 +69,19 @@ impl SarcFile {
             .map_err(|e| Error::Yaz0Error(e))
     }
 
+    /// Write to a writer that implements [`std::io::Write`](std::io::Write). This writes the SARC with zstd
+    /// compression. Requires `zstd_sarc` feature.
     #[cfg(feature = "zstd_sarc")]
     pub fn write_zstd<W: Write>(&self, f: &mut W) -> Result<(), Error> {
         let mut writer =
             zstd::stream::Encoder::new(f, zstd::DEFAULT_COMPRESSION_LEVEL)?;
         self.write(&mut writer)?;
+        writer.finish().unwrap();
         Ok(())
     }
 
+    /// Write to a writer that implements [`std::io::Write`](std::io::Write). This writes the SARC with no 
+    /// compression.
     pub fn write<W: Write>(&self, f: &mut W) -> std::io::Result<()> {
         let (string_offsets, string_section) = self.generate_string_section();
         let (data_offsets, data_section) = self.generate_data_section();

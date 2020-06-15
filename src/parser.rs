@@ -18,6 +18,7 @@ impl From<u16> for Endian {
     }
 }
 
+#[allow(dead_code)]
 struct SarcHeader {
     byte_order: Endian,
     file_size: u32,
@@ -84,6 +85,7 @@ fn get_string(slice: &[u8], offset: usize) -> Option<String> {
 
 type NE<'a> = (&'a [u8], nom::error::ErrorKind);
 
+/// An error while reading the file
 #[derive(Debug)]
 pub enum Error {
     IoError(std::io::Error),
@@ -99,10 +101,16 @@ use std::io::Cursor;
 use yaz0::Yaz0Archive;
 
 impl SarcFile {
+    /// Read a sarc file (with or without compression) from a file.
+    ///
+    /// **Note:** Compression requires the `yaz0_sarc` and/or the `zstd_sarc` features.
     pub fn read_from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, Error> {
         Self::read(&std::fs::read(path.as_ref()).map_err(|e| Error::IoError(e))?)
     }
 
+    /// Read a sarc file (with or without compression) from a byte slice.
+    ///
+    /// **Note:** Compression requires the `yaz0_sarc` and/or the `zstd_sarc` features.
     pub fn read(data: &[u8]) -> Result<Self, Error> {
         let mut decompressed: Vec<u8>;
         let data = {
