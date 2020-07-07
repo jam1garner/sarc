@@ -113,6 +113,9 @@ impl SarcFile {
     /// **Note:** Compression requires the `yaz0_sarc` and/or the `zstd_sarc` features.
     pub fn read(data: &[u8]) -> Result<Self, Error> {
         let mut decompressed: Vec<u8>;
+        if data.len() < 4 {
+            return Err(Error::ParseError("Input buffer must be at least 4 bytes".into()));
+        }
         let data = {
             if b"Yaz0" == &data[..4] {
                 #[cfg(feature = "yaz0_sarc")] {
