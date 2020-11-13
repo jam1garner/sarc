@@ -1,6 +1,7 @@
 use binwrite::{BinWrite, writer_option_new};
 use super::*;
 use std::io::prelude::*;
+use std::io::BufWriter;
 use std::path::Path;
 
 /// An error raised in the process of writing the sarc file
@@ -21,7 +22,7 @@ impl From<std::io::Error> for Error {
 impl SarcFile {
     /// Write 
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
-        self.write(&mut std::fs::File::create(path.as_ref())?)
+        self.write(&mut BufWriter::new(std::fs::File::create(path.as_ref())?))
     }
 
     /// Write to a compressed file. This writes the SARC with yaz0 compression. Requires either the
@@ -32,7 +33,7 @@ impl SarcFile {
     #[cfg(feature = "yaz0_sarc")]
     pub fn write_to_compressed_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
         self.write_yaz0(
-            &mut std::fs::File::create(path.as_ref())?
+            &mut BufWriter::new(std::fs::File::create(path.as_ref())?)
         )
     }
 
@@ -45,7 +46,7 @@ impl SarcFile {
     #[cfg(not(feature = "yaz0_sarc"))]
     pub fn write_to_compressed_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
         self.write_zstd(
-            &mut std::fs::File::create(path.as_ref())?
+            &mut BufWriter::new(std::fs::File::create(path.as_ref())?)
         )
     }
 
@@ -54,6 +55,7 @@ impl SarcFile {
     pub fn write_to_yaz0_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
         self.write_yaz0(
             &mut std::fs::File::create(path.as_ref())
+                .map(BufWriter::new)
                 .map_err(|e| Error::IoError(e))?
         )
     }
@@ -117,7 +119,7 @@ impl SarcFile {
 
         data_section.write_options(f, options)?;
 
-        Ok(())
+        f.flush()
     }
 
     fn get_sfat_entries(&self, string_offsets: Vec<u32>, data_offsets: Vec<(u32, u32)>)
