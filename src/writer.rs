@@ -125,18 +125,20 @@ impl SarcFile {
     fn get_sfat_entries(&self, string_offsets: Vec<u32>, data_offsets: Vec<(u32, u32)>)
         -> Vec<SfatEntry<'_>>
     {
-        self.files
+        let mut sfat_entries: Vec<SfatEntry<'_>> = self.files
             .iter()
             .enumerate()
             .map(|(i, file)|{
-                let name: Option<&str> = file.name.as_ref().map(|a| &**a);
+                let name: Option<&str> = file.name.as_deref();
                 SfatEntry {
                     name,
-                    name_table_offset: string_offsets.get(i).map(|a| *a),
+                    name_table_offset: string_offsets.get(i).copied(),
                     file_range: data_offsets[i]
                 }
             })
-            .collect()
+            .collect();
+        sfat_entries.sort_by_key(|e| e.name.map(sfat_hash).unwrap_or(0));
+        sfat_entries
     }
 
     fn generate_string_section(&self) -> (Vec<u32>, Vec<u8>) {
