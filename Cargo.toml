@@ -23,7 +23,7 @@ zstd_sarc = ["zstd"]
 
 [dependencies]
 nom = "5"
-binwrite = "0.2.1"
+binwrite = { version = "0.2.1" }
 yaz0 = { version = "0.1.2" , optional = true }
 zstd = { version = "0.5.1", optional = true }
 

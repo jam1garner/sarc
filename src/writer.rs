@@ -3,6 +3,7 @@ use super::*;
 use std::io::prelude::*;
 use std::io::BufWriter;
 use std::path::Path;
+use std::collections::HashMap;
 
 /// An error raised in the process of writing the sarc file
 #[derive(Debug)]
@@ -89,8 +90,11 @@ impl SarcFile {
         let (data_offsets, data_section) = self.generate_data_section();
 
         let num_files = self.files.len();
-        let data_offset = SarcHeader::SIZE + Sfat::HEADER_SIZE + (num_files * SfatEntry::SIZE)
-                            + SFNT_HEADER_SIZE + string_section.len();
+        let data_padding_offset = SarcHeader::SIZE + Sfat::HEADER_SIZE
+            + (num_files * SfatEntry::SIZE) + SFNT_HEADER_SIZE + string_section.len();
+        let data_offset = (data_padding_offset + 0x1FFF) & !0x1FFF;
+        let data_padding = data_offset - data_padding_offset;
+
         let file_size = (data_offset + data_section.len()) as u32;
         let data_offset = data_offset as u32;
 
@@ -117,23 +121,26 @@ impl SarcFile {
         
         string_section.write_options(f, options)?;
 
+        vec![0u8; data_padding].write_options(f, options)?;
+
         data_section.write_options(f, options)?;
 
         f.flush()
     }
 
-    fn get_sfat_entries(&self, string_offsets: Vec<u32>, data_offsets: Vec<(u32, u32)>)
+    fn get_sfat_entries(&self, string_offsets: HashMap<u32, u32>, data_offsets: HashMap<u32, (u32, u32)>)
         -> Vec<SfatEntry<'_>>
     {
         let mut sfat_entries: Vec<SfatEntry<'_>> = self.files
             .iter()
-            .enumerate()
-            .map(|(i, file)|{
+            .map(|file| {
                 let name: Option<&str> = file.name.as_deref();
                 SfatEntry {
                     name,
-                    name_table_offset: string_offsets.get(i).copied(),
-                    file_range: data_offsets[i]
+                    name_table_offset:
+                        name.map(sfat_hash)
+                            .and_then(|hash| string_offsets.get(&hash).copied()),
+                    file_range: data_offsets[&name.as_deref().map(sfat_hash).unwrap_or_default()]
                 }
             })
             .collect();
@@ -141,11 +148,12 @@ impl SarcFile {
         sfat_entries
     }
 
-    fn generate_string_section(&self) -> (Vec<u32>, Vec<u8>) {
-        let names: Vec<&str> =
+    fn generate_string_section(&self) -> (HashMap<u32, u32>, Vec<u8>) {
+        let mut names: Vec<&str> =
             self.files.iter().filter_map(|a| Some(a.name.as_ref()?.as_str())).collect();
 
         let mut string_section = vec![];
+        names.sort_by_key(|name| sfat_hash(name));
         let offsets =
             names
                 .into_iter()
@@ -154,25 +162,32 @@ impl SarcFile {
                     SarcString::from(string)
                         .write(&mut string_section)
                         .ok()?;
-                    Some(off)
+                    Some((sfat_hash(string), off))
                 })
                 .collect();
 
         (offsets, string_section)
     }
 
-    fn generate_data_section(&self) -> (Vec<(u32, u32)>, Vec<u8>) {
+    fn generate_data_section(&self) -> (HashMap<u32, (u32, u32)>, Vec<u8>) {
         let mut data = vec![];
+        let mut files: Vec<_> = self.files.iter()
+            .map(|file| (file.name.as_deref().map(sfat_hash).unwrap_or_default(), &file.data[..]))
+            .collect();
+        files.sort_by_key(|(hash, _)| *hash);
         (
-            self.files.iter()
-                .map(|file| {
-                    let start = data.len() as u32;
-                    file.data.write(&mut data).unwrap();
+            files.into_iter()
+                .map(|(hash, file)| {
+                    let start_padding = data.len();
+                    let start = (start_padding + 0x1fff) & !0x1fff;
+                    let padding = start - start_padding;
+                    let start = start as u32;
+                    vec![0u8; padding].write(&mut data).unwrap();
+                    file.write(&mut data).unwrap();
                     let end = data.len() as u32;
-                    (start, end)
+                    (hash, (start, end))
                 })
-                .collect()
-            ,
+                .collect(),
             data
         )
     }
