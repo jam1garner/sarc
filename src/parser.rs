@@ -55,7 +55,7 @@ fn parse_sfat<E: TakeEndian>(data: &[u8]) -> IResult<&[u8], (u32, Vec<SfatNode>)
             take_u32::<E>,
             take_u32::<E>,
             take_u32::<E>,
-        ))(data)?;
+        ))(data).unwrap();
 
         const HAS_NAME: u32 = 0x01000000;
 
@@ -69,7 +69,7 @@ fn parse_sfat<E: TakeEndian>(data: &[u8]) -> IResult<&[u8], (u32, Vec<SfatNode>)
             name_offset,
             file_range: (file_start as usize..file_end as usize)
         }))
-    }, node_count as _)(data)?;
+    }, node_count as _)(data).unwrap();
     
     Ok((data, (hash_key, files)))
 }
@@ -197,7 +197,7 @@ impl SarcHeader {
             tag(b"SARC"),
             le_u16,
             be_u16,
-        ))(data)?;
+        ))(data).unwrap();
 
         match endian.into() {
             Endian::Big => Self::parse_endian::<BigEndian>(data, Endian::Big),
